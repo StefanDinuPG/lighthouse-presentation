@@ -1,0 +1,151 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Firebase diagnostic</title>
+<style>
+  body{background:#0a0f14;color:#cfe;font:14px/1.6 ui-monospace,Consolas,monospace;padding:24px;margin:0}
+  h1{font-size:17px;letter-spacing:.2em;color:#3fe0d0;margin:0 0 18px}
+  .r{padding:7px 10px;border-left:3px solid #2a3f4a;margin:6px 0;background:#0f1720;white-space:pre-wrap}
+  .ok{border-color:#3fe0d0}.bad{border-color:#ff5c5c;color:#ffb3b3}.warn{border-color:#ffb454;color:#ffd9a0}
+  b{color:#fff}
+  #fix{margin-top:22px;padding:16px;border:1px solid #ffb454;border-radius:8px;background:rgba(255,180,84,.08);color:#ffd9a0;display:none}
+</style></head>
+<body>
+<h1>ALN  FIREBASE DIAGNOSTIC</h1>
+<div id="o"></div>
+<div id="fix"></div>
+<script type="module">
+const o = document.getElementById('o');
+const fixEl = document.getElementById('fix');
+const add = (cls, msg) => { const d = document.createElement('div'); d.className = 'r ' + cls; d.innerHTML = msg; o.appendChild(d); };
+const fix = html => { fixEl.style.display = 'block'; fixEl.innerHTML = html; };
+
+function diagnose(code, msg) {
+  const c = String(code || '') + ' ' + String(msg || '');
+  if (/operation-not-allowed|CONFIGURATION_NOT_FOUND/i.test(c)) {
+    fix(`<b>Anonymous sign-in is not enabled.</b><br><br>
+      Firebase console  <b>Build  Authentication</b>.<br>
+      If you have never opened it, click <b>Get started</b> first.<br>
+      Then the <b>Sign-in method</b> tab  scroll to the bottom of the provider list 
+      <b>Anonymous</b>  toggle <b>Enable</b>  <b>Save</b>.`);
+  } else if (/PERMISSION_DENIED|permission_denied/i.test(c)) {
+    fix(`<b>The database rules are rejecting us.</b><br><br>
+      Firebase console  <b>Build  Realtime Database  Rules</b> tab.<br>
+      Delete everything in the box, paste the rules block from README.md
+      ("Running it as a live shared session"), then click <b>Publish</b>.<br><br>
+      If it still fails, the rules may have been pasted into <b>Firestore</b>'s rules tab
+      by mistake  they are different products with near-identical screens.`);
+  } else if (/api-key-not-valid|invalid-api-key|API key not valid/i.test(c)) {
+    fix(`<b>The apiKey in js/config.js is wrong.</b><br><br>
+      Firebase console  <b> Project settings  General  Your apps</b>  copy the value again.`);
+  } else if (/auth\/network|Failed to fetch|NetworkError|unavailable/i.test(c)) {
+    fix(`<b>The browser could not reach Google's servers.</b><br><br>
+      A corporate VPN, proxy or firewall is the usual cause. Try a phone hotspot to confirm.`);
+  } else if (/unauthorized-domain/i.test(c)) {
+    fix(`<b>This domain is not on the authorised list.</b><br><br>
+      Firebase console  <b>Authentication  Settings  Authorised domains</b>  <b>Add domain</b>.
+      Add <b>${location.hostname}</b> (and your GitHub Pages domain when you deploy).`);
+  } else if (/timeout/i.test(c)) {
+    fix(`<b>The call hung rather than failing.</b><br><br>
+      Two usual causes:<br>
+      1. <b>Anonymous sign-in was never enabled</b>  Build  Authentication  Get started 
+         Sign-in method  Anonymous  Enable.<br>
+      2. A <b>corporate proxy or VPN</b> is silently swallowing the request. The Firebase SDK
+         downloaded fine, so plain HTTPS works  but <code>identitytoolkit.googleapis.com</code>
+         and your database host may be blocked. Try a phone hotspot to confirm.`);
+  } else {
+    fix(`<b>Unrecognised failure.</b> Send me the red line above verbatim.`);
+  }
+}
+
+/** Never let a hung network call leave the page with no verdict. */
+function withTimeout(p, ms, label) {
+  return Promise.race([
+    p,
+    new Promise((_, rej) => setTimeout(() => {
+      const e = new Error(label + ' did not respond within ' + (ms / 1000) + 's');
+      e.code = 'timeout';
+      rej(e);
+    }, ms)),
+  ]);
+}
+
+let cfg;
+try {
+  cfg = await import('./js/config.js');
+  add('ok', 'config.js loaded');
+  add(cfg.NET_CONFIGURED ? 'ok' : 'bad', 'NET_CONFIGURED = <b>' + cfg.NET_CONFIGURED + '</b>');
+  for (const k of ['apiKey','authDomain','databaseURL','projectId']) {
+    const v = cfg.FIREBASE[k] || '';
+    const bad = !v;
+    const ws = v !== v.trim();
+    add(bad ? 'bad' : ws ? 'warn' : 'ok',
+      k + ' = ' + (v ? '<b>' + v.replace(/^(.{54}).+$/, '$1') + '</b>' : '(EMPTY)') + (ws ? '   has stray whitespace' : ''));
+  }
+  const url = cfg.FIREBASE.databaseURL || '';
+  if (url && !/^https:\/\/[^/]+\.(firebaseio\.com|firebasedatabase\.app)$/.test(url.replace(/\/$/, ''))) {
+    add('warn', ' databaseURL does not look like a Realtime Database URL.\n  Expected firebaseio.com or .firebasedatabase.app\n  A Firestore project has NO databaseURL  you may have created the wrong product.');
+  }
+} catch (e) {
+  add('bad', 'config.js FAILED to parse: ' + e.message);
+  fix('<b>js/config.js has a syntax error</b>  most likely a missing comma or quote.');
+  throw e;
+}
+
+let app, dbmod, db;
+try {
+  const [{ initializeApp }, auth, dbm] = await Promise.all([
+    import(`${cfg.FIREBASE_SDK}firebase-app.js`),
+    import(`${cfg.FIREBASE_SDK}firebase-auth.js`),
+    import(`${cfg.FIREBASE_SDK}firebase-database.js`),
+  ]);
+  add('ok', 'Firebase SDK downloaded from the CDN');
+  dbmod = dbm;
+  app = initializeApp(cfg.FIREBASE);
+  add('ok', 'app initialised');
+
+  // --- step 1: anonymous auth
+  let uid;
+  try {
+    const a = auth.getAuth(app);
+    const cred = await withTimeout(auth.signInAnonymously(a), 20000, 'Anonymous sign-in');
+    uid = cred.user.uid;
+    add('ok', 'ANONYMOUS SIGN-IN OK  uid ' + uid.slice(0, 10) + '');
+  } catch (e) {
+    add('bad', 'ANONYMOUS SIGN-IN FAILED\n  code: ' + (e.code || '?') + '\n  ' + e.message);
+    diagnose(e.code, e.message);
+    throw e;
+  }
+
+  // --- step 2: read
+  db = dbmod.getDatabase(app);
+  try {
+    await withTimeout(dbmod.get(dbmod.ref(db, 'rooms/DIAG/meta')), 20000, 'Database read');
+    add('ok', 'DATABASE READ OK');
+  } catch (e) {
+    add('bad', 'DATABASE READ FAILED\n  code: ' + (e.code || '?') + '\n  ' + e.message);
+    diagnose(e.code, e.message);
+    throw e;
+  }
+
+  // --- step 3: write, exercised exactly the way GO LIVE does it.
+  // A fresh room each run, claimed with our own uid: the rules only let you
+  // claim a room that is unowned or already yours, so reusing a fixed code
+  // with a fake host value would fail on the second run forever after.
+  const scratch = 'DIAG' + Math.random().toString(36).slice(2, 6).toUpperCase();
+  try {
+    const r = dbmod.ref(db, `rooms/${scratch}/meta`);
+    await withTimeout(dbmod.set(r, { host: uid, createdAt: dbmod.serverTimestamp() }), 20000, 'Database write');
+    add('ok', 'DATABASE WRITE OK  (claimed room ' + scratch + ')');
+    // Release it again. Deleting the last child removes the empty room node too.
+    await dbmod.remove(r);
+    add('ok', 'cleanup OK  (released ' + scratch + ')');
+    add('ok', '<b>ALL CHECKS PASSED  GO LIVE will work.</b>');
+  } catch (e) {
+    add('bad', 'DATABASE WRITE FAILED\n  code: ' + (e.code || '?') + '\n  ' + e.message);
+    diagnose(e.code, e.message);
+  }
+} catch (e) {
+  if (!fixEl.style.display) { add('bad', 'FAILED: ' + (e.code || '') + ' ' + e.message); diagnose(e.code, e.message); }
+}
+</script>
+</body></html>
+

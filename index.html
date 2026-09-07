@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Autonomous Lighthouse Network — Live Ops Briefing</title>
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>%F0%9F%97%BC</text></svg>" />
+</head>
+<body>
+  <canvas id="scene-bg" aria-hidden="true"></canvas>
+  <div id="scanlines" aria-hidden="true"></div>
+  <div id="vignette" aria-hidden="true"></div>
+
+  <header id="hud">
+    <div class="hud-left">
+      <span class="dot" id="link-dot"></span>
+      <span class="brand">ALN&nbsp;//&nbsp;AUTONOMOUS&nbsp;LIGHTHOUSE&nbsp;NETWORK</span>
+      <span id="session-badge" class="session-badge hidden"></span>
+    </div>
+    <div class="hud-center" id="hud-section">BOOTING</div>
+    <div class="hud-right">
+      <span id="hud-score" class="score hidden">SCORE <b>0</b>/8</span>
+      <span id="hud-count" class="count">00 / 00</span>
+      <button id="help-btn" class="ghost-btn" title="Keyboard help (?)">?</button>
+    </div>
+  </header>
+
+  <main id="stage" tabindex="-1"></main>
+
+  <footer id="progress"><div id="progress-track"></div></footer>
+
+  <div id="help" class="overlay hidden">
+    <div class="overlay-card">
+      <h2>Presenter Controls</h2>
+      <p class="muted">Nothing in this deck advances on a timer. You drive every beat.</p>
+      <table class="keys">
+        <tr><td><kbd>→</kbd> <kbd>Space</kbd> <kbd>PgDn</kbd></td><td>Next step</td></tr>
+        <tr><td><kbd>←</kbd> <kbd>PgUp</kbd></td><td>Previous step</td></tr>
+        <tr><td><kbd>Home</kbd></td><td>Jump to intro</td></tr>
+        <tr><td><kbd>End</kbd></td><td>Jump to the final game</td></tr>
+        <tr><td><kbd>1</kbd>/<kbd>A</kbd> &nbsp; <kbd>2</kbd>/<kbd>B</kbd></td><td>Pick option A / B in a scenario</td></tr>
+        <tr><td><kbd>0</kbd></td><td>Reset the scoreboard</td></tr>
+        <tr><td><kbd>F</kbd></td><td>Toggle fullscreen</td></tr>
+        <tr><td colspan="2" class="sep">Live session</td></tr>
+        <tr><td><kbd>S</kbd></td><td>Show the join link and room code</td></tr>
+        <tr><td><kbd>L</kbd></td><td>Reveal the names on the leaderboard on screen</td></tr>
+        <tr><td colspan="2" class="sep">In the final game</td></tr>
+        <tr><td><kbd>Enter</kbd> / <kbd>Esc</kbd></td><td>END ROUND — lock inputs, reveal final fidelity</td></tr>
+        <tr><td><kbd>R</kbd></td><td>Reset for the next contestant (leaderboard is kept)</td></tr>
+        <tr><td><kbd>C</kbd></td><td>Clear the leaderboard</td></tr>
+        <tr><td><kbd>V</kbd></td><td>Toggle the pristine reference feed</td></tr>
+        <tr><td><kbd>B</kbd></td><td>Toggle battery drain (safety valve for long sessions)</td></tr>
+      </table>
+      <p class="muted small">Press <kbd>?</kbd> or <kbd>Esc</kbd> to close.</p>
+    </div>
+  </div>
+
+  <div id="join" class="overlay hidden"></div>
+  <div id="session-panel" class="overlay hidden"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

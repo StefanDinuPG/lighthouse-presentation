@@ -1,0 +1,13 @@
+# Presenter-only material, never published.
+# The repo is public and GitHub Pages serves every committed file, so anything
+# that answers the game has to stay out of the commit entirely.
+PRESENTER-NOTES.md
+
+# Local scratch
+_*.html
+*.bak
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
